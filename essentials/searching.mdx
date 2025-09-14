@@ -16,8 +16,8 @@ The API automatically converts your text queries to vector embeddings using the 
 1. **Query Processing**: Your text query is converted to a vector embedding
 2. **Similarity Calculation**: The embedding is compared against all stored chunk embeddings
 3. **Ranking**: Results are sorted by similarity score (cosine similarity)
-4. **Filtering**: Optional metadata filters are applied
-5. **Results**: Top-k most similar chunks are returned
+4. **Post-Filtering**: Optional metadata filters are applied to the ranked results
+5. **Results**: Top-k most similar chunks that pass the filters are returned
 
 ## Basic Search
 

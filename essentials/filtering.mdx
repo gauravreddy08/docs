@@ -5,10 +5,10 @@ description: 'Master metadata filtering to find exactly what you need with preci
 
 ## Overview
 
-Metadata filtering allows you to narrow down search results based on specific criteria before or after vector similarity ranking. This enables precise queries like "find similar documents that are published, in English, and have a rating above 4.0."
+Metadata filtering allows you to narrow down search results based on specific criteria applied after vector similarity ranking (post-filtering). This enables precise queries like "find similar documents that are published, in English, and have a rating above 4.0."
 
 <Info>
-Filters work with all index types (Linear, IVF, NSW) and can dramatically improve search relevance by combining semantic similarity with exact metadata matches.
+Filters work with all index types (Linear, IVF, NSW) and can dramatically improve search relevance by combining semantic similarity with exact metadata matches. Note that filtering is applied as a post-processing step after the initial vector similarity search.
 </Info>
 
 ## Filter Syntax
@@ -360,10 +360,10 @@ Some filters work better with different index types:
   </Tab>
   
   <Tab title="IVF Index">
-    **Filters applied to candidate clusters**
+    **Filters applied post-search to IVF results**
     
     ```json
-    // More selective filters reduce cluster search time
+    // More selective filters work well with cluster-based results
     {
       "filters": {
         "category": "specific_category",  // High selectivity
@@ -372,23 +372,23 @@ Some filters work better with different index types:
     }
     ```
     
-    Highly selective filters can significantly speed up search.
+    Post-filtering works efficiently with IVF's clustered search results.
   </Tab>
   
   <Tab title="NSW Index">
-    **Filters applied during graph traversal**
+    **Filters applied post-search to graph results**
     
     ```json
-    // Boolean filters work best during graph navigation
+    // All filter types work well with NSW results
     {
       "filters": {
-        "published": true,               // Fast boolean check
-        "category": {"in": ["a", "b"]}   // Fast membership test
+        "published": true,               // Boolean check
+        "category": {"in": ["a", "b"]}   // Membership test
       }
     }
     ```
     
-    Simple equality and boolean filters are most efficient.
+    Post-filtering works efficiently with NSW's graph-based search results.
   </Tab>
 </Tabs>
 
