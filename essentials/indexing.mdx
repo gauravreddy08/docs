@@ -1,0 +1,629 @@
+---
+title: 'Indexing'
+description: 'Understanding vector indexing algorithms and choosing the right one for your use case'
+---
+
+## Overview
+
+Vector indexing is the process of organizing vector embeddings in a data structure that enables fast similarity search. The Vector Database API supports three different indexing algorithms, each optimized for different scenarios.
+
+<Info>
+The choice of index type significantly impacts search performance, memory usage, and accuracy. Understanding these trade-offs helps you choose the optimal approach for your data.
+</Info>
+
+## Index Type Comparison
+
+<CardGroup cols={3}>
+  <Card title="Linear" icon="arrow-right">
+    **Exact Search**
+    - ✅ 100% accuracy
+    - ✅ Simple implementation
+    - ❌ O(n) search time
+    - ❌ Doesn't scale
+  </Card>
+  <Card title="IVF" icon="chart-network">
+    **Cluster-based**
+    - ✅ Good accuracy (90-99%)
+    - ✅ Scales to 100K+ vectors
+    - ✅ Tunable speed/accuracy
+    - ❌ Requires index build
+  </Card>
+  <Card title="NSW" icon="share-nodes">
+    **Graph-based**
+    - ✅ Fast search O(log n)
+    - ✅ Incremental updates
+    - ✅ Scales to millions
+    - ❌ Higher memory usage
+  </Card>
+</CardGroup>
+
+## Linear Index
+
+Linear indexing performs brute-force search by comparing the query vector against every stored vector using cosine similarity.
+
+### How It Works
+
+1. **Storage**: Vectors are stored in a simple list
+2. **Search**: Compute cosine similarity with every vector
+3. **Ranking**: Sort by similarity score and return top-k
+
+```python
+# Conceptual implementation
+def linear_search(query_vector, stored_vectors, k):
+    similarities = []
+    for vector in stored_vectors:
+        score = cosine_similarity(query_vector, vector)
+        similarities.append((score, vector))
+    
+    # Sort by similarity (highest first) and return top-k
+    return sorted(similarities, reverse=True)[:k]
+```
+
+### Performance Characteristics
+
+<ParamField path="Time Complexity" type="O(n × d)">
+  Where n = number of vectors, d = vector dimensions
+</ParamField>
+
+<ParamField path="Space Complexity" type="O(n × d)">
+  Only stores the original vectors, no additional index structures
+</ParamField>
+
+<ParamField path="Build Time" type="O(1)">
+  No index building required - immediate search capability
+</ParamField>
+
+<ParamField path="Search Accuracy" type="100%">
+  Exact results guaranteed - finds true nearest neighbors
+</ParamField>
+
+### When to Use Linear
+
+<Tabs>
+  <Tab title="Ideal Use Cases">
+    - **Small datasets** (< 1,000 vectors)
+    - **Prototyping** and development
+    - **Exact results required**
+    - **Simple deployment** needs
+    
+    ```json
+    {
+      "name": "prototype-library",
+      "index_type": "linear"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Avoid When">
+    - Dataset > 10,000 vectors
+    - Sub-second search required
+    - High query volume
+    - Memory is limited
+  </Tab>
+</Tabs>
+
+## IVF (Inverted File) Index
+
+IVF indexing uses k-means clustering to partition vectors into clusters, then searches only the most relevant clusters during query time.
+
+### How It Works
+
+1. **Clustering**: Use k-means to create `n_clusters` centroids
+2. **Assignment**: Assign each vector to its nearest centroid
+3. **Search**: Find `n_probes` closest centroids to query, search within those clusters
+
+
+```python
+# Conceptual implementation
+def ivf_search(query_vector, centroids, clusters, n_probes, k):
+    # Find closest centroids
+    centroid_distances = [
+        cosine_similarity(query_vector, centroid) 
+        for centroid in centroids
+    ]
+    closest_centroids = argsort(centroid_distances)[:n_probes]
+    
+    # Search within selected clusters
+    candidates = []
+    for cluster_id in closest_centroids:
+        candidates.extend(clusters[cluster_id])
+    
+    # Rank candidates and return top-k
+    return linear_search(query_vector, candidates, k)
+```
+
+### Performance Characteristics
+
+<ParamField path="Time Complexity" type="O(p × c̄ × d)">
+  Where p = n_probes, c̄ = average cluster size, d = dimensions
+</ParamField>
+
+<ParamField path="Space Complexity" type="O(n × d + k × d)">
+  Original vectors plus k centroids
+</ParamField>
+
+<ParamField path="Build Time" type="O(i × n × k × d)">
+  Where i = k-means iterations (typically 20-100)
+</ParamField>
+
+<ParamField path="Search Accuracy" type="90-99%">
+  Depends on n_probes - higher values = better accuracy
+</ParamField>
+
+### Configuration Parameters
+
+<AccordionGroup>
+<Accordion title="n_clusters">
+  **Number of clusters for k-means partitioning**
+  
+  - **Default**: `sqrt(n_vectors)` (minimum 1)
+  - **Range**: 1 to 10,000
+  - **Rule of thumb**: Start with `sqrt(dataset_size)`
+  
+  ```json
+  {
+    "index_params": {
+      "n_clusters": 100  // For ~10,000 vectors
+    }
+  }
+  ```
+  
+  **Effect on performance:**
+  - More clusters = finer partitioning = potentially better accuracy
+  - Too many clusters = small clusters = reduced efficiency
+  - Too few clusters = large clusters = slower search
+</Accordion>
+
+<Accordion title="n_probes">
+  **Number of clusters to search during query**
+  
+  - **Default**: 1
+  - **Range**: 1 to `n_clusters`
+  - **Rule of thumb**: 5-10% of `n_clusters` for balanced performance
+  
+  ```json
+  {
+    "index_params": {
+      "n_clusters": 100,
+      "n_probes": 5     // Search top 5 clusters
+    }
+  }
+  ```
+  
+  **Effect on performance:**
+  - More probes = higher accuracy = slower search
+  - 1 probe = fastest search = lowest accuracy
+  - All probes = linear search = 100% accuracy
+</Accordion>
+
+<Accordion title="cluster_ratio">
+  **Alternative to n_clusters using ratio of dataset size**
+  
+  - **Range**: 0.01 to 1.0
+  - **Example**: 0.1 = 10% of vectors become cluster count
+  
+  ```json
+  {
+    "index_params": {
+      "cluster_ratio": 0.1,  // Instead of n_clusters
+      "n_probes": 3
+    }
+  }
+  ```
+  
+  **When to use:**
+  - Dynamic datasets where size varies
+  - Want clusters to scale with data size
+  - Unsure about optimal cluster count
+</Accordion>
+</AccordionGroup>
+
+### Tuning Guidelines
+
+<Tabs>
+  <Tab title="Speed Optimization">
+    Optimize for fastest search times:
+    
+    ```json
+    {
+      "index_params": {
+        "n_clusters": 200,    // More clusters
+        "n_probes": 1         // Search only 1 cluster
+      }
+    }
+    ```
+    
+    **Trade-offs:**
+    - ✅ Fastest search
+    - ❌ Lower accuracy (85-95%)
+    - ✅ Lower memory during search
+  </Tab>
+  
+  <Tab title="Accuracy Optimization">
+    Optimize for highest accuracy:
+    
+    ```json
+    {
+      "index_params": {
+        "n_clusters": 50,     // Fewer, larger clusters
+        "n_probes": 10        // Search many clusters
+      }
+    }
+    ```
+    
+    **Trade-offs:**
+    - ✅ Higher accuracy (95-99%)
+    - ❌ Slower search
+    - ❌ More memory during search
+  </Tab>
+  
+  <Tab title="Balanced">
+    Balance speed and accuracy:
+    
+    ```json
+    {
+      "index_params": {
+        "n_clusters": 100,    // sqrt(dataset_size)
+        "n_probes": 5         // 5% of clusters
+      }
+    }
+    ```
+    
+    **Trade-offs:**
+    - ✅ Good accuracy (90-97%)
+    - ✅ Reasonable speed
+    - ✅ Moderate memory usage
+  </Tab>
+</Tabs>
+
+## NSW (Navigable Small World) Index
+
+NSW indexing builds a graph where each vector is connected to its nearest neighbors, enabling logarithmic search through graph navigation.
+
+### How It Works
+
+1. **Graph Construction**: For each vector, connect to M nearest neighbors
+2. **Search**: Start from entry points, navigate towards query using greedy search
+3. **Beam Search**: Maintain ef_search candidates during navigation
+
+
+```python
+# Conceptual implementation
+def nsw_search(query_vector, graph, entry_points, ef_search, k):
+    candidates = []
+    visited = set()
+    
+    # Start from entry points
+    for entry in entry_points:
+        candidates.append((cosine_similarity(query_vector, entry), entry))
+    
+    # Navigate through graph
+    while candidates:
+        current_dist, current_node = heappop(candidates)
+        
+        if current_node in visited:
+            continue
+        visited.add(current_node)
+        
+        # Explore neighbors
+        for neighbor in graph[current_node]:
+            if neighbor not in visited:
+                dist = cosine_similarity(query_vector, neighbor)
+                heappush(candidates, (dist, neighbor))
+                
+                # Keep only ef_search best candidates
+                if len(candidates) > ef_search:
+                    candidates = candidates[:ef_search]
+    
+    return candidates[:k]
+```
+
+### Performance Characteristics
+
+<ParamField path="Time Complexity" type="O(log n × d)">
+  Average case with well-connected graph
+</ParamField>
+
+<ParamField path="Space Complexity" type="O(n × M × d)">
+  Where M = max connections per node
+</ParamField>
+
+<ParamField path="Build Time" type="O(n²)">
+  Worst case, but typically much better with incremental construction
+</ParamField>
+
+<ParamField path="Search Accuracy" type="95-99%">
+  Depends on graph connectivity and ef_search parameter
+</ParamField>
+
+### Configuration Parameters
+
+<AccordionGroup>
+<Accordion title="M (Max Connections)">
+  **Maximum number of connections per node in the graph**
+  
+  - **Default**: 16
+  - **Range**: 4 to 64
+  - **Rule of thumb**: 16 for balanced performance, 32+ for high accuracy
+  
+  ```json
+  {
+    "index_params": {
+      "M": 16
+    }
+  }
+  ```
+  
+  **Effect on performance:**
+  - Higher M = better connectivity = higher accuracy = more memory
+  - Lower M = sparse graph = faster construction = lower accuracy
+  - Sweet spot is usually 12-20 for most datasets
+</Accordion>
+
+<Accordion title="ef_construction">
+  **Size of candidate list during graph construction**
+  
+  - **Default**: 200
+  - **Range**: 16 to 2000
+  - **Rule of thumb**: 200-400 for good graph quality
+  
+  ```json
+  {
+    "index_params": {
+      "M": 16,
+      "ef_construction": 200
+    }
+  }
+  ```
+  
+  **Effect on performance:**
+  - Higher ef_construction = better graph quality = slower construction
+  - Lower ef_construction = faster construction = worse connectivity
+  - Only affects build time, not search time
+</Accordion>
+
+<Accordion title="ef_search">
+  **Size of candidate list during search**
+  
+  - **Default**: 100
+  - **Range**: 1 to 1000  
+  - **Rule of thumb**: 100 for balanced performance
+  
+  ```json
+  {
+    "index_params": {
+      "M": 16,
+      "ef_construction": 200,
+      "ef_search": 100
+    }
+  }
+  ```
+  
+  **Effect on performance:**
+  - Higher ef_search = better accuracy = slower search
+  - Lower ef_search = faster search = lower accuracy
+  - Can be tuned per query (unlike other parameters)
+</Accordion>
+</AccordionGroup>
+
+### Tuning Guidelines
+
+<Tabs>
+  <Tab title="High Performance">
+    Optimize for fastest search:
+    
+    ```json
+    {
+      "index_params": {
+        "M": 12,              // Fewer connections
+        "ef_construction": 150,
+        "ef_search": 50       // Small candidate list
+      }
+    }
+    ```
+    
+    **Use case:** Real-time applications, high QPS
+  </Tab>
+  
+  <Tab title="High Accuracy">
+    Optimize for best results:
+    
+    ```json
+    {
+      "index_params": {
+        "M": 32,              // More connections
+        "ef_construction": 400,
+        "ef_search": 200      // Large candidate list
+      }
+    }
+    ```
+    
+    **Use case:** Offline processing, research applications
+  </Tab>
+  
+  <Tab title="Memory Efficient">
+    Optimize for lower memory usage:
+    
+    ```json
+    {
+      "index_params": {
+        "M": 8,               // Minimal connections
+        "ef_construction": 100,
+        "ef_search": 75
+      }
+    }
+    ```
+    
+    **Use case:** Large datasets, memory-constrained environments
+  </Tab>
+</Tabs>
+
+## Index Selection Guide
+
+Choose the right index type based on your requirements:
+
+<AccordionGroup>
+<Accordion title="Dataset Size">
+  **Small (< 1K vectors):** Linear
+  - Simple, exact results
+  - No tuning required
+  
+  **Medium (1K - 100K vectors):** IVF
+  - Good balance of speed and accuracy
+  - Configurable trade-offs
+  
+  **Large (> 100K vectors):** NSW
+  - Scales to millions of vectors
+  - Logarithmic search time
+</Accordion>
+
+<Accordion title="Performance Requirements">
+  **Exact results required:** Linear
+  - 100% accuracy guaranteed
+  - Accept slower search for correctness
+  
+  **Sub-second search needed:** NSW
+  - Fastest search algorithm
+  - 95-99% accuracy acceptable
+  
+  **Balanced performance:** IVF
+  - Tunable speed/accuracy trade-off
+  - Good for most applications
+</Accordion>
+
+<Accordion title="Memory Constraints">
+  **Limited memory:** Linear or IVF
+  - Linear: Only stores original vectors
+  - IVF: Small memory overhead for centroids
+  
+  **Abundant memory:** NSW
+  - Higher memory usage for graph structure
+  - Best performance with sufficient RAM
+</Accordion>
+
+<Accordion title="Update Patterns">
+  **Batch updates:** IVF
+  - Rebuild index periodically
+  - Optimal for stable datasets
+  
+  **Frequent updates:** NSW
+  - Incremental graph updates
+  - No rebuild required
+  
+  **Append-only:** Linear or NSW
+  - Linear: Always works
+  - NSW: Handles additions well
+</Accordion>
+</AccordionGroup>
+
+## Building and Rebuilding Indexes
+
+### When to Build
+
+<Tabs>
+  <Tab title="Required">
+    **IVF Index** - Must build before searching
+    
+    ```bash
+    # Required for IVF
+    curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/index'
+    ```
+    
+    Building creates clusters using k-means on all vectors.
+  </Tab>
+  
+  <Tab title="Not Required">
+    **Linear Index** - No build step needed
+    
+    ```bash
+    # Optional (does nothing)
+    curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/index'
+    ```
+    
+    **NSW Index** - Incremental construction
+    
+    ```bash
+    # Optional (does nothing) 
+    curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/index'
+    ```
+  </Tab>
+</Tabs>
+
+### When to Rebuild
+
+**IVF Indexes** should be rebuilt when:
+- Adding significant new data (>20% increase)
+- Search accuracy degrades
+- Changing index parameters
+
+```python
+# Check if rebuild needed
+library = get_library(library_id)
+chunks_since_build = count_chunks_since_last_build(library_id)
+total_chunks = len(library['documents'])
+
+if chunks_since_build / total_chunks > 0.2:
+    rebuild_index(library_id)
+```
+
+## Best Practices
+
+<Tip>
+**Start simple, optimize later.** Begin with linear indexing for prototyping, then upgrade to IVF or NSW as your dataset grows.
+</Tip>
+
+<AccordionGroup>
+<Accordion title="Index Selection">
+  1. **Prototype with Linear** - Get your application working first
+  2. **Scale to IVF** - When you reach 1K+ vectors
+  3. **Optimize with NSW** - For high-performance production systems
+  4. **Benchmark with your data** - Real-world performance varies
+</Accordion>
+
+<Accordion title="Parameter Tuning">
+  1. **Start with defaults** - They work well for most cases
+  2. **Measure performance** - Latency, accuracy, memory usage
+  3. **Tune incrementally** - Change one parameter at a time
+  4. **Test with real queries** - Synthetic data may not reflect usage
+</Accordion>
+
+<Accordion title="Monitoring">
+  1. **Track search latency** - P50, P95, P99 percentiles
+  2. **Monitor accuracy** - If you have ground truth data
+  3. **Watch memory usage** - Especially for NSW indexes
+  4. **Log slow queries** - Identify performance bottlenecks
+</Accordion>
+</AccordionGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card
+    title="Search Performance"
+    icon="magnifying-glass"
+    href="/essentials/searching"
+  >
+    Learn how to optimize search queries for your chosen index type.
+  </Card>
+  <Card
+    title="Filter Optimization"
+    icon="filter"
+    href="/essentials/filtering"
+  >
+    Understand how metadata filtering interacts with different indexes.
+  </Card>
+  <Card
+    title="Libraries"
+    icon="folder"
+    href="/essentials/libraries"
+  >
+    Learn how to choose and configure the right index for your library.
+  </Card>
+  <Card
+    title="Documents and Chunks"
+    icon="file-text"
+    href="/essentials/documents-and-chunks"
+  >
+    Understand how your data structure affects indexing performance.
+  </Card>
+</CardGroup>

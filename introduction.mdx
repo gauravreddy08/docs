@@ -1,0 +1,94 @@
+---
+title: Introduction
+description: 'Welcome to the Vector Database API - a fast, minimal, and containerized solution for vector similarity search'
+---
+
+## What is Vector Database API?
+
+Vector Database API is a high-performance, RESTful API designed for storing, indexing, and searching vector embeddings. Built with Python and FastAPI, it provides a clean, domain-driven architecture that makes it easy to implement similarity search capabilities in your applications.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card
+    title="Multiple Index Types"
+    icon="chart-network"
+    href="/essentials/indexing"
+  >
+    Choose from Linear scan, IVF clustering, or NSW graph indexing based on your performance needs.
+  </Card>
+  <Card
+    title="Advanced Filtering"
+    icon="filter"
+    href="/essentials/filtering"
+  >
+    Search with precise metadata filters using operators like contains, greater than, and in-array matching.
+  </Card>
+  <Card
+    title="Auto-Document Creation"
+    icon="file-plus"
+    href="/essentials/documents-and-chunks"
+  >
+    Creating chunks without a document ID automatically creates and links documents for simplified workflows.
+  </Card>
+  <Card
+    title="Thread-Safe Operations"
+    icon="shield-check"
+    href="/guides/docker-deployment"
+  >
+    Built-in thread safety with service/repository layers ensures reliable concurrent operations.
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+The Vector Database API follows Domain-Driven Design (DDD) principles with clean separation of concerns:
+
+<AccordionGroup>
+  <Accordion title="Domain Layer">
+    Core entities (Chunk, Document, Library) and business rules defined in `app/domain/`
+  </Accordion>
+  
+  <Accordion title="Service Layer">
+    Business logic implementation in `app/services/` that orchestrates operations
+  </Accordion>
+  
+  <Accordion title="Repository Layer">
+    Data access abstraction in `app/repositories/` with in-memory implementations
+  </Accordion>
+  
+  <Accordion title="API Layer">
+    FastAPI endpoints in `app/api/` that handle HTTP requests and responses
+  </Accordion>
+</AccordionGroup>
+
+## Quick Overview
+
+The API organizes data into three main concepts:
+
+- **Libraries**: Top-level containers that group related documents and define indexing strategy
+- **Documents**: Collections of chunks with associated metadata  
+- **Chunks**: Individual text pieces with vector embeddings and metadata for searching
+
+<Note>
+  Vector embeddings are automatically generated using the Cohere API when you create chunks with text content.
+</Note>
+
+## Ready to Get Started?
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="play"
+    href="/quickstart"
+  >
+    Get up and running with your first library and search in under 5 minutes.
+  </Card>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/essentials/libraries"
+  >
+    Learn about libraries, indexing, and vector search fundamentals.
+  </Card>
+</CardGroup>

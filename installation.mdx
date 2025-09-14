@@ -1,0 +1,327 @@
+---
+title: 'Installation'
+description: 'Get Vector Database API running on your system with Docker or local development setup'
+---
+
+## Docker Installation (Recommended)
+
+The easiest way to get started is using Docker Compose, which handles all dependencies and configuration automatically.
+
+<Steps>
+<Step title="Prerequisites">
+  Ensure you have Docker and Docker Compose installed on your system:
+  
+  <Tabs>
+    <Tab title="macOS">
+      ```bash
+      # Install Docker Desktop for Mac
+      brew install --cask docker
+      
+      # Or download from: https://docs.docker.com/desktop/mac/install/
+      ```
+    </Tab>
+    <Tab title="Windows">
+      ```powershell
+      # Install Docker Desktop for Windows
+      winget install Docker.DockerDesktop
+      
+      # Or download from: https://docs.docker.com/desktop/windows/install/
+      ```
+    </Tab>
+    <Tab title="Linux">
+      ```bash
+      # Ubuntu/Debian
+      sudo apt-get update
+      sudo apt-get install docker.io docker-compose
+      
+      # CentOS/RHEL
+      sudo yum install docker docker-compose
+      ```
+    </Tab>
+  </Tabs>
+</Step>
+
+<Step title="Clone the repository">
+  ```bash
+  git clone https://github.com/your-org/vector-db.git
+  cd vector-db
+  ```
+</Step>
+
+<Step title="Start the services">
+  ```bash
+  docker compose up -d
+  ```
+  
+  This will:
+  - Build the Vector Database API image
+  - Start the API server on port 8000
+  - Set up all necessary dependencies
+  
+  <Check>
+  The API will be available at `http://localhost:8000` with Swagger docs at `/docs`.
+  </Check>
+</Step>
+
+<Step title="Verify installation">
+  Test that the API is running correctly:
+  
+  ```bash
+  curl http://localhost:8000/health
+  ```
+  
+  Expected response:
+  ```json
+  {
+    "status": "healthy",
+    "message": "Running",
+    "version": "1.0"
+  }
+  ```
+</Step>
+</Steps>
+
+## Local Development Setup
+
+For development or customization, you can run the API locally with Python.
+
+<Steps>
+<Step title="Python requirements">
+  Ensure you have Python 3.8+ installed:
+  
+  ```bash
+  python --version  # Should be 3.8 or higher
+  ```
+</Step>
+
+<Step title="Create virtual environment">
+  ```bash
+  python -m venv env
+  source env/bin/activate  # On Windows: env\Scripts\activate
+  ```
+</Step>
+
+<Step title="Install dependencies">
+  ```bash
+  pip install -r requirements.txt
+  ```
+  
+  This installs:
+  - FastAPI for the web framework
+  - Uvicorn for the ASGI server
+  - Pydantic for data validation
+  - NumPy for mathematical operations
+  - Additional utilities and dependencies
+</Step>
+
+<Step title="Start the development server">
+  ```bash
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  ```
+  
+  <Info>
+  The `--reload` flag enables automatic reloading when you make code changes.
+  </Info>
+</Step>
+</Steps>
+
+## Environment Configuration
+
+The API uses the following default configuration that you can customize:
+
+<AccordionGroup>
+<Accordion title="Embedding Service">
+  The API uses Cohere for generating embeddings. You can configure this in `app/config.py`:
+  
+  ```python
+  # Cohere API configuration (set your own API keys)
+  COHERE_API_KEYS = [
+      "your_cohere_api_key_here"
+  ]
+  ```
+  
+  <Warning>
+  For production use, replace these with your own Cohere API keys.
+  </Warning>
+</Accordion>
+
+<Accordion title="Index Parameters">
+  Default index configurations can be found in `app/config.py`:
+  
+  ```python
+  # IVF Index defaults
+  IVF_DEFAULT_CLUSTER_RATIO = 0.1
+  IVF_DEFAULT_N_PROBES = 1
+  
+  # NSW Index defaults  
+  NSW_DEFAULT_M = 16
+  NSW_DEFAULT_EF_CONSTRUCTION = 200
+  NSW_DEFAULT_EF_SEARCH = 100
+  ```
+</Accordion>
+
+<Accordion title="Server Settings">
+  Customize server behavior by modifying these settings:
+  
+  ```python
+  # API Configuration
+  API_TITLE = "Vector Database API"
+  API_VERSION = "1.0"
+  API_PREFIX = "/v1"
+  
+  # Thread safety
+  MAX_CONCURRENT_REQUESTS = 100
+  ```
+</Accordion>
+</AccordionGroup>
+
+## Docker Compose Configuration
+
+The included `docker-compose.yml` provides a production-ready setup:
+
+```yaml docker-compose.yml
+version: '3.8'
+
+services:
+  vector-db:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ./app:/app/app:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+```
+
+## Populate Sample Data
+
+To quickly test the API with sample data:
+
+<Steps>
+<Step title="Start the API">
+  ```bash
+  docker compose up -d
+  ```
+</Step>
+
+<Step title="Run the population script">
+  ```bash
+  docker compose exec vector-db python examples/populate_db.py
+  ```
+  
+  This creates:
+  - Sample libraries for each index type (Linear, IVF, NSW)
+  - Test chunks with embeddings
+  - Built indexes ready for searching
+</Step>
+
+<Step title="Test with sample queries">
+  ```bash
+  # List created libraries
+  curl http://localhost:8000/v1/libraries/
+  
+  # Search in a library (replace with actual library ID)
+  curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/search' \
+    -H 'Content-Type: application/json' \
+    -d '{"query": "machine learning", "k": 3}'
+  ```
+</Step>
+</Steps>
+
+## Production Deployment
+
+<Tip>
+For production deployments, consider these additional steps:
+</Tip>
+
+<AccordionGroup>
+<Accordion title="Security">
+  - Add authentication middleware
+  - Use HTTPS with proper SSL certificates  
+  - Implement rate limiting
+  - Configure CORS policies appropriately
+</Accordion>
+
+<Accordion title="Scaling">
+  - Use a reverse proxy (nginx, traefik)
+  - Deploy multiple API instances behind a load balancer
+  - Consider persistent storage for index data
+  - Monitor memory usage for large vector collections
+</Accordion>
+
+<Accordion title="Monitoring">
+  - Add logging configuration
+  - Set up health check endpoints
+  - Monitor API response times
+  - Track memory and CPU usage
+</Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Port already in use">
+  If port 8000 is busy, change it in `docker-compose.yml`:
+  
+  ```yaml
+  ports:
+    - "8001:8000"  # Use port 8001 instead
+  ```
+</Accordion>
+
+<Accordion title="Embedding service errors">
+  If you see Cohere API errors:
+  
+  1. Check your internet connection
+  2. Verify the API keys are valid
+  3. Consider rate limiting if making many requests
+  
+  ```bash
+  # Test Cohere connectivity
+  curl -X POST 'https://api.cohere.ai/v1/embed' \
+    -H 'Authorization: Bearer YOUR_API_KEY' \
+    -H 'Content-Type: application/json' \
+    -d '{"texts": ["test"], "model": "embed-english-v2.0"}'
+  ```
+</Accordion>
+
+<Accordion title="Memory issues">
+  For large datasets, increase Docker memory limits:
+  
+  ```yaml
+  services:
+    vector-db:
+      deploy:
+        resources:
+          limits:
+            memory: 2G
+          reservations:
+            memory: 1G
+  ```
+</Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Quick Start"
+    icon="play"
+    href="/quickstart"
+  >
+    Create your first library and start searching in minutes.
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api-reference"
+  >
+    Explore all available endpoints and parameters.
+  </Card>
+</CardGroup>

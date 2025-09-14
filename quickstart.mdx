@@ -1,80 +1,299 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: 'Quickstart'
+description: 'Start building with Vector Database API in under 5 minutes'
 ---
 
-## Get started in three steps
+## Setup your development environment
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Start the API server">
+    Use Docker Compose to quickly start the Vector Database API:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    docker compose up -d
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Check>
+    The API will be available at `http://localhost:8000` with interactive documentation at `/docs`.
+    </Check>
+  </Step>
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+  <Step title="Verify the server is running">
+    Check the health endpoint to ensure everything is working:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash
+    curl http://localhost:8000/health
+    ```
+    
+    You should see a response like:
+    ```json
+    {
+      "status": "healthy",
+      "message": "Running", 
+      "version": "1.0"
+    }
+    ```
+  </Step>
+</Steps>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Create your first library
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+A library is the top-level container for your documents and chunks. It also defines which indexing algorithm to use.
 
-### Step 3: Go live
+<CodeGroup>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+```bash cURL
+curl -X POST 'http://localhost:8000/v1/libraries/' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "my-first-library",
+    "index_type": "linear",
+    "metadata": {
+      "description": "My first vector database library"
+    }
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post('http://localhost:8000/v1/libraries/', json={
+    "name": "my-first-library", 
+    "index_type": "linear",
+    "metadata": {
+        "description": "My first vector database library"
+    }
+})
+
+library = response.json()
+library_id = library['id']
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "name": "my-first-library",
+  "created_at": "2024-01-15T10:30:00Z",
+  "metadata": {
+    "description": "My first vector database library"
+  },
+  "index_type": "linear",
+  "index_params": null,
+  "documents": []
+}
+```
+
+</ResponseExample>
+
+<Tip>
+Save the `id` from the response - you'll need it for the next steps!
+</Tip>
+
+## Add your first chunk
+
+Chunks are pieces of text that get converted to vector embeddings for similarity search. When you create a chunk without specifying a `document_id`, a new document is automatically created.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/chunks/' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "text": "The quick brown fox jumps over the lazy dog",
+    "metadata": {
+      "category": "example",
+      "language": "en"
+    }
+  }'
+```
+
+```python Python
+chunk_response = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/chunks/', json={
+    "text": "The quick brown fox jumps over the lazy dog",
+    "metadata": {
+        "category": "example", 
+        "language": "en"
+    }
+})
+
+chunk = chunk_response.json()
+print(f"Created chunk: {chunk['id']}")
+```
+
+</CodeGroup>
+
+Let's add a few more chunks to make search more interesting:
+
+<CodeGroup>
+
+```bash cURL
+# Add more sample chunks
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/chunks/' \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Machine learning algorithms process data efficiently", "metadata": {"category": "tech"}}'
+
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/chunks/' \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Natural language processing enables text understanding", "metadata": {"category": "tech"}}'
+```
+
+```python Python
+# Add more sample chunks
+sample_chunks = [
+    {
+        "text": "Machine learning algorithms process data efficiently",
+        "metadata": {"category": "tech"}
+    },
+    {
+        "text": "Natural language processing enables text understanding", 
+        "metadata": {"category": "tech"}
+    }
+]
+
+for chunk_data in sample_chunks:
+    requests.post(f'http://localhost:8000/v1/libraries/{library_id}/chunks/', json=chunk_data)
+```
+
+</CodeGroup>
+
+## Build the index
+
+For some index types like IVF, you need to build the index before searching. Linear indexes don't require this step, but it's a good practice to call it anyway:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/index'
+```
+
+```python Python
+index_response = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/index')
+print("Index built successfully!")
+```
+
+</CodeGroup>
+
+## Search for similar content
+
+Now you can search for chunks similar to your query text:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/search' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "fast algorithms and data processing", 
+    "k": 2
+  }'
+```
+
+```python Python
+search_response = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/search', json={
+    "query": "fast algorithms and data processing",
+    "k": 2
+})
+
+results = search_response.json()
+for result in results['results']:
+    print(f"Score: {result['score']:.3f} - Text: {result['chunk']['text']}")
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Search Results
+{
+  "library_id": "123e4567-e89b-12d3-a456-426614174000",
+  "query": "fast algorithms and data processing",
+  "k": 2,
+  "filters": null,
+  "results": [
+    {
+      "chunk_id": "456e7890-e89b-12d3-a456-426614174001", 
+      "score": 0.82,
+      "chunk": {
+        "id": "456e7890-e89b-12d3-a456-426614174001",
+        "document_id": "789e1234-e89b-12d3-a456-426614174002",
+        "library_id": "123e4567-e89b-12d3-a456-426614174000",
+        "text": "Machine learning algorithms process data efficiently",
+        "metadata": {"category": "tech"},
+        "created_at": "2024-01-15T10:35:00Z"
+      }
+    }
+  ]
+}
+```
+
+</ResponseExample>
+
+## Search with filters
+
+You can also search with metadata filters to narrow down results:
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/search' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "query": "algorithms",
+    "k": 5,
+    "filters": {
+      "category": "tech"
+    }
+  }'
+```
+
+```python Python
+filtered_search = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/search', json={
+    "query": "algorithms",
+    "k": 5, 
+    "filters": {
+        "category": "tech"
+    }
+})
+
+results = filtered_search.json()
+print(f"Found {len(results['results'])} results with category='tech'")
+```
+
+</CodeGroup>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card
+    title="Learn about Index Types"
+    icon="chart-network"
+    href="/essentials/indexing"
+  >
+    Understand when to use Linear, IVF, or NSW indexing for optimal performance.
+  </Card>
+  <Card
+    title="Advanced Filtering"
+    icon="filter" 
+    href="/essentials/filtering"
+  >
+    Master complex metadata filtering with operators like contains, gte, and in-array.
+  </Card>
+  <Card
+    title="Libraries & Organization"
+    icon="folder"
+    href="/essentials/libraries"
+  >
+    Learn how to organize and structure your vector data effectively.
+  </Card>
+  <Card
+    title="Search & Performance"
+    icon="magnifying-glass"
+    href="/essentials/searching"
+  >
+    Master vector similarity search for optimal results.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

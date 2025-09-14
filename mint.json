@@ -1,0 +1,33 @@
+{
+  "name": "Vector Database API",
+  "favicon": "/favicon.ico",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "quickstart",
+        "installation"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "essentials/libraries",
+        "essentials/documents-and-chunks",
+        "essentials/indexing",
+        "essentials/searching",
+        "essentials/filtering"
+      ]
+    }
+  ]
+}

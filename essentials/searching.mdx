@@ -1,0 +1,205 @@
+---
+title: 'Searching'
+description: 'Learn how to perform effective vector similarity search with the Vector Database API'
+---
+
+## Overview
+
+Vector similarity search is the core functionality of the Vector Database API. It finds chunks of text that are semantically similar to your query by comparing vector embeddings in high-dimensional space.
+
+<Info>
+The API automatically converts your text queries to vector embeddings using the Cohere API, so you don't need to handle embeddings directly.
+</Info>
+
+## How Vector Search Works
+
+1. **Query Processing**: Your text query is converted to a vector embedding
+2. **Similarity Calculation**: The embedding is compared against all stored chunk embeddings
+3. **Ranking**: Results are sorted by similarity score (cosine similarity)
+4. **Filtering**: Optional metadata filters are applied
+5. **Results**: Top-k most similar chunks are returned
+
+## Basic Search
+
+The simplest search requires just a query and the number of results:
+
+```json
+{
+  "query": "machine learning algorithms",
+  "k": 5
+}
+```
+
+This finds the 5 most similar chunks to "machine learning algorithms" in your library.
+
+## Search Parameters
+
+<ParamField path="query" type="string" required>
+  The text to find similar content for. Will be automatically converted to embeddings.
+</ParamField>
+
+<ParamField path="k" type="integer" required>
+  Number of results to return (1-1000). Most use cases need 5-20 results.
+</ParamField>
+
+<ParamField path="filters" type="object" optional>
+  Metadata filters to narrow down results before ranking by similarity.
+</ParamField>
+
+## Similarity Scoring
+
+Search results include a similarity score between 0.0 and 1.0:
+
+- **1.0** = Identical content
+- **0.8-0.9** = Very similar content  
+- **0.6-0.8** = Moderately similar content
+- **0.4-0.6** = Somewhat related content
+- **< 0.4** = Weakly related content
+
+## Search Strategies
+
+### Broad Discovery
+
+Cast a wide net to explore your content:
+
+```json
+{
+  "query": "programming",
+  "k": 20
+}
+```
+
+### Specific Lookup
+
+Find exact information with precise queries:
+
+```json
+{
+  "query": "how to configure SSL certificates in nginx",
+  "k": 5
+}
+```
+
+### Filtered Search
+
+Combine semantic similarity with exact metadata matches:
+
+```json
+{
+  "query": "database optimization",
+  "k": 10,
+  "filters": {
+    "difficulty": "advanced",
+    "category": "performance"
+  }
+}
+```
+
+## Performance by Index Type
+
+<Tabs>
+  <Tab title="Linear">
+    - **Speed**: O(n) - scales linearly with dataset size
+    - **Accuracy**: 100% - finds exact nearest neighbors
+    - **Best for**: Small datasets, exact results required
+  </Tab>
+  
+  <Tab title="IVF">
+    - **Speed**: O(probes × cluster_size) - much faster than linear
+    - **Accuracy**: 90-99% - depends on n_probes setting
+    - **Best for**: Medium datasets, balanced performance
+  </Tab>
+  
+  <Tab title="NSW">
+    - **Speed**: O(log n) - fastest for large datasets
+    - **Accuracy**: 95-99% - depends on ef_search setting
+    - **Best for**: Large datasets, real-time search
+  </Tab>
+</Tabs>
+
+## Query Optimization
+
+### Effective Query Writing
+
+**Good queries:**
+- Use natural language: "How to deploy applications with Docker"
+- Include key concepts: "Python machine learning classification algorithms"
+- Be specific when needed: "REST API authentication with JWT tokens"
+
+**Less effective queries:**
+- Single words: "Python"
+- Very short: "API"
+- Too generic: "help"
+
+### Query Length
+
+- **Optimal**: 5-20 words
+- **Maximum**: ~400 words (512 tokens)
+- **Minimum**: At least 2-3 meaningful words
+
+## Combining Search with Filters
+
+Filters can be applied to improve relevance:
+
+```json
+{
+  "query": "user authentication methods",
+  "k": 8,
+  "filters": {
+    "content_type": "tutorial",
+    "difficulty": {"in": ["beginner", "intermediate"]},
+    "last_updated": {"gte": "2023-01-01"}
+  }
+}
+```
+
+This finds authentication tutorials that are beginner/intermediate level and recently updated.
+
+## Search Result Quality
+
+### Factors Affecting Quality
+
+1. **Content Quality**: Well-written, clear content produces better embeddings
+2. **Chunk Size**: 100-500 word chunks usually work best
+3. **Query Specificity**: More specific queries yield more relevant results
+4. **Metadata Design**: Good metadata enables effective filtering
+
+### Improving Results
+
+1. **Refine queries** - Be more specific or try different wording
+2. **Adjust k value** - Request more results to see broader matches
+3. **Use filters** - Narrow down by category, date, or other metadata
+4. **Optimize chunking** - Ensure chunks contain complete thoughts
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card
+    title="Filtering"
+    icon="filter"
+    href="/essentials/filtering"
+  >
+    Learn advanced metadata filtering techniques.
+  </Card>
+  <Card
+    title="Indexing"
+    icon="chart-network"
+    href="/essentials/indexing"
+  >
+    Understand how different indexes affect search performance.
+  </Card>
+  <Card
+    title="Libraries"
+    icon="folder"
+    href="/essentials/libraries"
+  >
+    Learn about organizing your data in libraries.
+  </Card>
+  <Card
+    title="Documents and Chunks"
+    icon="file-text"
+    href="/essentials/documents-and-chunks"
+  >
+    Understand how to structure your data for optimal search.
+  </Card>
+</CardGroup>

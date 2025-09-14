@@ -1,0 +1,693 @@
+---
+title: 'Filtering'
+description: 'Master metadata filtering to find exactly what you need with precision and speed'
+---
+
+## Overview
+
+Metadata filtering allows you to narrow down search results based on specific criteria before or after vector similarity ranking. This enables precise queries like "find similar documents that are published, in English, and have a rating above 4.0."
+
+<Info>
+Filters work with all index types (Linear, IVF, NSW) and can dramatically improve search relevance by combining semantic similarity with exact metadata matches.
+</Info>
+
+## Filter Syntax
+
+The Vector Database API supports two filter syntaxes: simple equality and operator-based filtering.
+
+### Simple Equality Filters
+
+For exact matches, specify key-value pairs directly:
+
+```json
+{
+  "filters": {
+    "category": "programming",
+    "language": "english", 
+    "status": "published"
+  }
+}
+```
+
+This finds chunks where:
+- `category` exactly equals "programming" AND
+- `language` exactly equals "english" AND  
+- `status` exactly equals "published"
+
+### Operator-Based Filters
+
+For complex conditions, use operator objects:
+
+```json
+{
+  "filters": {
+    "rating": {"gte": 4.0},
+    "price": {"lt": 100},
+    "tags": {"in": ["python", "tutorial"]},
+    "title": {"contains": "introduction"}
+  }
+}
+```
+
+## Supported Operators
+
+<ParamField path="eq" type="equal to">
+  **Default operator** when no operator is specified
+  
+  ```json
+  {"category": "tech"}
+  // Same as:
+  {"category": {"eq": "tech"}}
+  ```
+</ParamField>
+
+<ParamField path="ne" type="not equal to">
+  Excludes chunks with the specified value
+  
+  ```json
+  {"status": {"ne": "draft"}}
+  ```
+</ParamField>
+
+<ParamField path="gt" type="greater than">
+  For numeric comparisons
+  
+  ```json
+  {"rating": {"gt": 4.0}}
+  ```
+</ParamField>
+
+<ParamField path="gte" type="greater than or equal">
+  For numeric comparisons (inclusive)
+  
+  ```json
+  {"price": {"gte": 50}}
+  ```
+</ParamField>
+
+<ParamField path="lt" type="less than">
+  For numeric comparisons
+  
+  ```json
+  {"word_count": {"lt": 500}}
+  ```
+</ParamField>
+
+<ParamField path="lte" type="less than or equal">
+  For numeric comparisons (inclusive)
+  
+  ```json
+  {"difficulty": {"lte": 3}}
+  ```
+</ParamField>
+
+<ParamField path="contains" type="substring match">
+  Case-insensitive string containment
+  
+  ```json
+  {"title": {"contains": "getting started"}}
+  ```
+</ParamField>
+
+<ParamField path="in" type="value in array">
+  Matches if value is in the provided array
+  
+  ```json
+  {"category": {"in": ["tech", "science", "education"]}}
+  ```
+</ParamField>
+
+<ParamField path="nin" type="value not in array">
+  Matches if value is NOT in the provided array
+  
+  ```json
+  {"tags": {"nin": ["deprecated", "outdated"]}}
+  ```
+</ParamField>
+
+## Filter Examples by Use Case
+
+### Content Management
+
+<CodeGroup>
+
+```json Published Content Only
+{
+  "query": "user authentication",
+  "k": 10,
+  "filters": {
+    "status": "published",
+    "visibility": "public"
+  }
+}
+```
+
+```json Recent Content
+{
+  "query": "latest features",
+  "k": 5,
+  "filters": {
+    "published_date": {"gte": "2024-01-01"},
+    "status": {"ne": "archived"}
+  }
+}
+```
+
+```json Content by Author
+{
+  "query": "best practices",
+  "k": 8,
+  "filters": {
+    "author": {"in": ["john_doe", "jane_smith"]},
+    "content_type": "guide"
+  }
+}
+```
+
+</CodeGroup>
+
+### E-commerce Search
+
+<CodeGroup>
+
+```json Price Range Filter
+{
+  "query": "wireless headphones",
+  "k": 20,
+  "filters": {
+    "price": {"gte": 50, "lte": 200},
+    "in_stock": true,
+    "rating": {"gte": 4.0}
+  }
+}
+```
+
+```json Brand and Category
+{
+  "query": "running shoes",
+  "k": 15,
+  "filters": {
+    "category": "footwear",
+    "brand": {"in": ["nike", "adidas", "puma"]},
+    "size": {"in": [9, 9.5, 10]}
+  }
+}
+```
+
+```json Exclude Out of Stock
+{
+  "query": "laptop computer",
+  "k": 12,
+  "filters": {
+    "category": "electronics",
+    "in_stock": true,
+    "condition": {"ne": "refurbished"}
+  }
+}
+```
+
+</CodeGroup>
+
+### Knowledge Base
+
+<CodeGroup>
+
+```json Difficulty-Based Search
+{
+  "query": "machine learning tutorial",
+  "k": 10,
+  "filters": {
+    "difficulty": "beginner",
+    "content_type": {"in": ["tutorial", "guide"]},
+    "has_examples": true
+  }
+}
+```
+
+```json Topic and Language
+{
+  "query": "API documentation",
+  "k": 15,
+  "filters": {
+    "topic": {"contains": "rest"},
+    "language": "english",
+    "last_updated": {"gte": "2023-01-01"}
+  }
+}
+```
+
+```json Support Priority
+{
+  "query": "login issues",
+  "k": 5,
+  "filters": {
+    "category": "troubleshooting",
+    "priority": {"in": ["high", "critical"]},
+    "resolution_status": "resolved"
+  }
+}
+```
+
+</CodeGroup>
+
+## Advanced Filtering Patterns
+
+### Range Queries
+
+Combine multiple operators for precise ranges:
+
+```json
+{
+  "filters": {
+    "price": {"gte": 100, "lte": 500},
+    "rating": {"gt": 3.5, "lt": 5.0},
+    "word_count": {"gte": 200, "lte": 1000}
+  }
+}
+```
+
+### Multi-Value Matching
+
+Use arrays for OR-like conditions within a field:
+
+```json
+{
+  "filters": {
+    "category": {"in": ["tech", "programming", "software"]},
+    "difficulty": {"in": ["beginner", "intermediate"]},
+    "tags": {"nin": ["deprecated", "beta"]}
+  }
+}
+```
+
+### Text Pattern Matching
+
+Use `contains` for flexible string matching:
+
+```json
+{
+  "filters": {
+    "title": {"contains": "introduction"},
+    "description": {"contains": "step by step"},
+    "author": {"contains": "smith"}
+  }
+}
+```
+
+### Exclusion Patterns
+
+Filter out unwanted content:
+
+```json
+{
+  "filters": {
+    "status": {"ne": "draft"},
+    "category": {"nin": ["spam", "test", "duplicate"]},
+    "quality_score": {"gte": 3.0}
+  }
+}
+```
+
+## Filter Performance Optimization
+
+### Selective Filters First
+
+Order filters from most to least selective:
+
+<CodeGroup>
+
+```json Good: Selective Filter First
+{
+  "filters": {
+    "status": "published",        // Eliminates 80% of chunks
+    "language": "english",        // Eliminates 50% of remaining  
+    "rating": {"gte": 4.0}       // Eliminates 30% of remaining
+  }
+}
+```
+
+```json Less Optimal: Broad Filter First  
+{
+  "filters": {
+    "has_text": true,           // Eliminates only 5% of chunks
+    "word_count": {"gte": 1},   // Eliminates only 10% of chunks
+    "status": "published"       // Should be first
+  }
+}
+```
+
+</CodeGroup>
+
+### Index-Friendly Filters
+
+Some filters work better with different index types:
+
+<Tabs>
+  <Tab title="Linear Index">
+    **All filters applied post-search**
+    
+    ```json
+    // All filters work equally well
+    {
+      "filters": {
+        "any_field": "any_value",
+        "numeric_field": {"gte": 100}
+      }
+    }
+    ```
+    
+    Performance depends only on filter selectivity.
+  </Tab>
+  
+  <Tab title="IVF Index">
+    **Filters applied to candidate clusters**
+    
+    ```json
+    // More selective filters reduce cluster search time
+    {
+      "filters": {
+        "category": "specific_category",  // High selectivity
+        "rating": {"gte": 4.5}           // Medium selectivity
+      }
+    }
+    ```
+    
+    Highly selective filters can significantly speed up search.
+  </Tab>
+  
+  <Tab title="NSW Index">
+    **Filters applied during graph traversal**
+    
+    ```json
+    // Boolean filters work best during graph navigation
+    {
+      "filters": {
+        "published": true,               // Fast boolean check
+        "category": {"in": ["a", "b"]}   // Fast membership test
+      }
+    }
+    ```
+    
+    Simple equality and boolean filters are most efficient.
+  </Tab>
+</Tabs>
+
+## Combining Filters with Search
+
+### Filter-First Strategy
+
+Apply restrictive filters to dramatically reduce search space:
+
+```python
+# Search within a specific content type and time range
+search_request = {
+    "query": "machine learning models",
+    "k": 10,
+    "filters": {
+        "content_type": "research_paper",
+        "published_year": {"gte": 2020},
+        "peer_reviewed": True
+    }
+}
+```
+
+### Search-Then-Filter Strategy
+
+Get similarity results, then apply specific criteria:
+
+```python
+# Cast a wide net, then filter for quality
+search_request = {
+    "query": "programming tutorial",
+    "k": 50,  # Get many candidates
+    "filters": {
+        "rating": {"gte": 4.0},
+        "completeness": "complete",
+        "has_code_examples": True
+    }
+}
+
+# API will return top matches from filtered candidates
+```
+
+## Real-World Examples
+
+### Customer Support Search
+
+```python
+def search_support_articles(user_query, urgency_level="any"):
+    filters = {
+        "status": "published",
+        "content_type": "support_article",
+        "language": "english"
+    }
+    
+    # Add urgency filter if specified
+    if urgency_level != "any":
+        if urgency_level == "urgent":
+            filters["priority"] = {"in": ["high", "critical"]}
+        elif urgency_level == "standard":
+            filters["priority"] = {"in": ["low", "medium"]}
+    
+    return search_api(
+        query=user_query,
+        k=10,
+        filters=filters
+    )
+
+# Usage
+urgent_results = search_support_articles("login problem", "urgent")
+standard_results = search_support_articles("how to change password", "standard")
+```
+
+### Product Recommendation
+
+```python
+def find_similar_products(product_description, price_range=None, brand_preference=None):
+    filters = {
+        "in_stock": True,
+        "status": "active",
+        "rating": {"gte": 3.0}
+    }
+    
+    # Add price filter if specified
+    if price_range:
+        filters["price"] = {
+            "gte": price_range["min"],
+            "lte": price_range["max"]
+        }
+    
+    # Add brand filter if specified  
+    if brand_preference:
+        filters["brand"] = {"in": brand_preference}
+    
+    return search_api(
+        query=product_description,
+        k=20,
+        filters=filters
+    )
+
+# Usage
+similar_phones = find_similar_products(
+    "smartphone with great camera",
+    price_range={"min": 300, "max": 800},
+    brand_preference=["apple", "samsung", "google"]
+)
+```
+
+### Content Discovery
+
+```python
+def discover_learning_content(topic, user_level="any", content_formats=None):
+    filters = {
+        "status": "published",
+        "quality_score": {"gte": 4.0}
+    }
+    
+    # Filter by difficulty level
+    if user_level == "beginner":
+        filters["difficulty"] = {"in": ["beginner", "easy"]}
+    elif user_level == "advanced":
+        filters["difficulty"] = {"in": ["advanced", "expert"]}
+    
+    # Filter by content format
+    if content_formats:
+        filters["format"] = {"in": content_formats}
+    
+    return search_api(
+        query=topic,
+        k=15,
+        filters=filters
+    )
+
+# Usage
+beginner_tutorials = discover_learning_content(
+    "python programming",
+    user_level="beginner",
+    content_formats=["tutorial", "interactive_lesson"]
+)
+```
+
+## Error Handling
+
+### Common Filter Errors
+
+<AccordionGroup>
+<Accordion title="Invalid Operator">
+  ```json
+  // Error: Unknown operator
+  {
+    "filters": {
+      "price": {"invalid_op": 100}
+    }
+  }
+  
+  // Response: 400 Bad Request
+  {
+    "detail": "Unknown filter operator 'invalid_op'. Supported: eq, ne, gt, gte, lt, lte, contains, in, nin"
+  }
+  ```
+  
+  **Solution:** Use only supported operators.
+</Accordion>
+
+<Accordion title="Type Mismatch">
+  ```json
+  // Error: Wrong value type for operator
+  {
+    "filters": {
+      "rating": {"gte": "high"}  // Should be number
+    }
+  }
+  
+  // Response: 400 Bad Request
+  {
+    "detail": "Filter value type mismatch: expected number for 'gte' operator, got string"
+  }
+  ```
+  
+  **Solution:** Ensure value types match operator expectations.
+</Accordion>
+
+<Accordion title="Field Not Found">
+  ```json
+  // Warning: Field doesn't exist in any chunks
+  {
+    "filters": {
+      "non_existent_field": "value"
+    }
+  }
+  
+  // Response: 200 OK (empty results)
+  {
+    "results": []
+  }
+  ```
+  
+  **Solution:** Verify field names exist in your chunk metadata.
+</Accordion>
+</AccordionGroup>
+
+### Defensive Filtering
+
+```python
+def safe_search_with_filters(query, filters_dict):
+    """Search with error handling for filters"""
+    try:
+        # Validate filter structure
+        validated_filters = {}
+        
+        for field, condition in filters_dict.items():
+            if isinstance(condition, dict):
+                # Validate operators
+                for operator in condition.keys():
+                    if operator not in ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'contains', 'in', 'nin']:
+                        raise ValueError(f"Invalid operator: {operator}")
+                validated_filters[field] = condition
+            else:
+                # Simple equality
+                validated_filters[field] = condition
+        
+        # Perform search
+        response = search_api(
+            query=query,
+            k=10,
+            filters=validated_filters
+        )
+        
+        return response
+        
+    except ValueError as e:
+        print(f"Filter validation error: {e}")
+        # Fallback to search without filters
+        return search_api(query=query, k=10)
+    
+    except Exception as e:
+        print(f"Search error: {e}")
+        return {"results": []}
+```
+
+## Best Practices
+
+<Tip>
+**Start broad, then narrow.** Begin with semantic search, then apply filters to refine results rather than over-constraining initially.
+</Tip>
+
+<AccordionGroup>
+<Accordion title="Filter Design">
+  1. **Plan your metadata schema** before adding content
+  2. **Use consistent field names** across chunks and documents  
+  3. **Normalize values** (e.g., lowercase categories, standard date formats)
+  4. **Include filterable fields** in chunk metadata design
+  5. **Test filter selectivity** to ensure good performance
+</Accordion>
+
+<Accordion title="Performance Optimization">
+  1. **Order filters by selectivity** (most restrictive first)
+  2. **Use boolean fields** for fast true/false filters
+  3. **Prefer exact matches** over range queries when possible
+  4. **Limit use of contains** operator on large text fields
+  5. **Monitor filter performance** in production
+</Accordion>
+
+<Accordion title="User Experience">
+  1. **Provide filter suggestions** based on available metadata
+  2. **Show filter counts** to help users understand data distribution
+  3. **Allow filter removal** for easy exploration
+  4. **Combine filters intelligently** (AND vs OR logic)
+  5. **Handle empty results gracefully** with alternative suggestions
+</Accordion>
+</AccordionGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card
+    title="Searching"
+    icon="magnifying-glass"
+    href="/essentials/searching"
+  >
+    Learn how to combine semantic search with metadata filtering.
+  </Card>
+  <Card
+    title="Documents and Chunks"
+    icon="file-text"
+    href="/essentials/documents-and-chunks"
+  >
+    Learn how to design effective metadata schemas.
+  </Card>
+  <Card
+    title="Indexing"
+    icon="chart-network"
+    href="/essentials/indexing"
+  >
+    Understand how filters interact with different index types.
+  </Card>
+  <Card
+    title="Libraries"
+    icon="folder"
+    href="/essentials/libraries"
+  >
+    Learn how library organization affects filtering strategies.
+  </Card>
+</CardGroup>

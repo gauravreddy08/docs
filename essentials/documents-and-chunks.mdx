@@ -1,0 +1,443 @@
+---
+title: 'Documents and Chunks'
+description: 'Learn how to organize your text data using documents and chunks for optimal vector search'
+---
+
+## Understanding the Hierarchy
+
+The Vector Database API uses a three-level hierarchy to organize your data:
+
+```
+Library
+├── Document 1
+│   ├── Chunk 1
+│   ├── Chunk 2
+│   └── Chunk 3
+├── Document 2
+│   ├── Chunk 4
+│   └── Chunk 5
+└── ...
+```
+
+<Info>
+This hierarchy allows you to maintain logical groupings (documents) while enabling fine-grained search at the chunk level.
+</Info>
+
+## Documents
+
+Documents are containers that group related chunks together. They represent logical units of content, such as:
+
+- A research paper
+- A product manual
+- A customer support ticket
+- A blog post
+- A legal contract
+
+### Document Properties
+
+<ParamField path="id" type="UUID" required>
+  Unique identifier automatically generated when the document is created
+</ParamField>
+
+<ParamField path="library_id" type="UUID" required>
+  ID of the library this document belongs to
+</ParamField>
+
+<ParamField path="chunks" type="array" readonly>
+  List of chunk IDs that belong to this document
+</ParamField>
+
+<ParamField path="metadata" type="object" optional>
+  Key-value pairs for storing document-level information
+</ParamField>
+
+<ParamField path="created_at" type="datetime" readonly>
+  Timestamp when the document was created
+</ParamField>
+
+### Creating Documents
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/documents/' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "metadata": {
+      "title": "Introduction to Machine Learning",
+      "author": "Dr. Jane Smith",
+      "publication_date": "2024-01-15",
+      "category": "research-paper"
+    }
+  }'
+```
+
+```python Python
+response = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/documents/', json={
+    "metadata": {
+        "title": "Introduction to Machine Learning",
+        "author": "Dr. Jane Smith", 
+        "publication_date": "2024-01-15",
+        "category": "research-paper"
+    }
+})
+
+document = response.json()
+document_id = document['id']
+```
+
+</CodeGroup>
+
+## Chunks
+
+Chunks are the smallest units of text that get converted to vector embeddings for similarity search. They represent individual pieces of content within a document.
+
+<Tip>
+**Chunking Strategy:** Break your content into coherent, self-contained pieces. Good chunk sizes are typically 100-500 words or 1-3 paragraphs.
+</Tip>
+
+### Chunk Properties
+
+<ParamField path="id" type="UUID" required>
+  Unique identifier automatically generated when the chunk is created
+</ParamField>
+
+<ParamField path="document_id" type="UUID" required>
+  ID of the document this chunk belongs to
+</ParamField>
+
+<ParamField path="library_id" type="UUID" required>
+  ID of the library this chunk belongs to
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  The actual text content that will be converted to a vector embedding
+</ParamField>
+
+<ParamField path="metadata" type="object" optional>
+  Key-value pairs for storing chunk-level information (used for filtering)
+</ParamField>
+
+<ParamField path="created_at" type="datetime" readonly>
+  Timestamp when the chunk was created
+</ParamField>
+
+### Creating Chunks
+
+You can create chunks in two ways:
+
+<Tabs>
+  <Tab title="With Existing Document">
+    Create a chunk and associate it with an existing document:
+    
+    <CodeGroup>
+    ```bash cURL
+    curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/chunks/' \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "text": "Machine learning is a subset of artificial intelligence that focuses on algorithms that can learn from data.",
+        "document_id": "{document_id}",
+        "metadata": {
+          "section": "introduction",
+          "page": 1,
+          "importance": "high"
+        }
+      }'
+    ```
+    
+    ```python Python
+    chunk_response = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/chunks/', json={
+        "text": "Machine learning is a subset of artificial intelligence that focuses on algorithms that can learn from data.",
+        "document_id": document_id,
+        "metadata": {
+            "section": "introduction",
+            "page": 1, 
+            "importance": "high"
+        }
+    })
+    ```
+    </CodeGroup>
+  </Tab>
+  
+  <Tab title="Auto-Create Document">
+    Create a chunk without specifying a document ID. A new document will be automatically created:
+    
+    <CodeGroup>
+    ```bash cURL
+    curl -X POST 'http://localhost:8000/v1/libraries/{library_id}/chunks/' \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "text": "Deep learning uses neural networks with multiple layers to model complex patterns in data.",
+        "metadata": {
+          "section": "deep-learning",
+          "difficulty": "intermediate"
+        },
+        "document_metadata": {
+          "title": "Auto-created Document",
+          "type": "generated"
+        }
+      }'
+    ```
+    
+    ```python Python
+    auto_chunk = requests.post(f'http://localhost:8000/v1/libraries/{library_id}/chunks/', json={
+        "text": "Deep learning uses neural networks with multiple layers to model complex patterns in data.",
+        "metadata": {
+            "section": "deep-learning",
+            "difficulty": "intermediate"
+        },
+        "document_metadata": {
+            "title": "Auto-created Document", 
+            "type": "generated"
+        }
+    })
+    ```
+    </CodeGroup>
+    
+    <Check>
+    When auto-creating documents, the `document_metadata` field allows you to set metadata for the new document.
+    </Check>
+  </Tab>
+</Tabs>
+
+## Working with Embeddings
+
+When you create a chunk with text content, the API automatically:
+
+1. **Generates embeddings** using the Cohere API
+2. **Stores the vector** for similarity search
+3. **Updates the index** (for incremental indexes like NSW)
+
+<AccordionGroup>
+<Accordion title="Embedding Process">
+  ```python
+  # This happens automatically when you create a chunk:
+  
+  1. Text: "Machine learning is powerful"
+  2. API calls Cohere: embed_text(text)
+  3. Returns vector: [0.1, -0.3, 0.8, ..., 0.2]  # 4096 dimensions
+  4. Stores in index for search
+  ```
+</Accordion>
+
+<Accordion title="Embedding Models">
+  The API uses Cohere's `embed-english-v2.0` model by default:
+  
+  - **Dimensions:** 4096
+  - **Languages:** Optimized for English
+  - **Max Length:** 512 tokens (~400 words)
+  - **Type:** Dense embeddings for semantic similarity
+</Accordion>
+
+<Accordion title="Chunking Best Practices">
+  For optimal search results:
+  
+  ✅ **Good chunk sizes:**
+  - Technical docs: 200-400 words
+  - Conversational text: 100-200 words  
+  - Code documentation: 50-150 words
+  
+  ✅ **Coherent content:**
+  - Complete thoughts or concepts
+  - Natural paragraph breaks
+  - Self-contained information
+  
+  ❌ **Avoid:**
+  - Single sentences (too small)
+  - Entire documents (too large)
+  - Mid-sentence breaks
+</Accordion>
+</AccordionGroup>
+
+## Metadata Strategies
+
+Use metadata to enable powerful filtering during search:
+
+### Document-Level Metadata
+
+Store information about the entire document:
+
+```json
+{
+  "title": "Product Requirements Document",
+  "author": "Product Team",
+  "version": "2.1",
+  "status": "approved",
+  "department": "engineering",
+  "created_date": "2024-01-15",
+  "tags": ["requirements", "mobile-app", "v2"]
+}
+```
+
+### Chunk-Level Metadata
+
+Store information specific to individual chunks:
+
+```json
+{
+  "section": "user-authentication",
+  "subsection": "oauth-flow", 
+  "page": 12,
+  "priority": "high",
+  "technical_level": "advanced",
+  "estimated_reading_time": 3
+}
+```
+
+## Operations Examples
+
+### Updating Content
+
+<CodeGroup>
+
+```bash Update Chunk Text
+curl -X PATCH 'http://localhost:8000/v1/libraries/{library_id}/chunks/{chunk_id}' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "text": "Updated: Machine learning is a powerful subset of AI that enables systems to learn from data automatically.",
+    "metadata": {
+      "section": "introduction",
+      "last_updated": "2024-01-20"
+    }
+  }'
+```
+
+```bash Update Document Metadata
+curl -X PATCH 'http://localhost:8000/v1/libraries/{library_id}/documents/{document_id}' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "metadata": {
+      "status": "reviewed",
+      "reviewer": "Dr. John Doe",
+      "review_date": "2024-01-20"
+    }
+  }'
+```
+
+</CodeGroup>
+
+<Warning>
+When you update chunk text, the embedding is automatically regenerated and the index is updated.
+</Warning>
+
+### Retrieving Content
+
+<CodeGroup>
+
+```bash Get Document with Chunks
+curl 'http://localhost:8000/v1/libraries/{library_id}/documents/{document_id}'
+```
+
+```bash Get Specific Chunk
+curl 'http://localhost:8000/v1/libraries/{library_id}/chunks/{chunk_id}'
+```
+
+```python Python
+# Get document details
+document = requests.get(f'http://localhost:8000/v1/libraries/{library_id}/documents/{document_id}').json()
+
+# Get all chunks in the document
+chunk_ids = document['chunks']
+chunks = []
+for chunk_id in chunk_ids:
+    chunk = requests.get(f'http://localhost:8000/v1/libraries/{library_id}/chunks/{chunk_id}').json()
+    chunks.append(chunk)
+```
+
+</CodeGroup>
+
+### Deleting Content
+
+<CodeGroup>
+
+```bash Delete Chunk
+curl -X DELETE 'http://localhost:8000/v1/libraries/{library_id}/chunks/{chunk_id}'
+```
+
+```bash Delete Document (and all chunks)
+curl -X DELETE 'http://localhost:8000/v1/libraries/{library_id}/documents/{document_id}'
+```
+
+</CodeGroup>
+
+<Info>
+Deleting a document automatically deletes all of its chunks. Deleting a chunk updates the parent document's chunk list.
+</Info>
+
+## Use Cases and Patterns
+
+<Tabs>
+  <Tab title="Document-Centric">
+    **Best for:** Traditional documents, papers, manuals
+    
+    ```python
+    # 1. Create document first
+    doc = create_document(metadata={"title": "User Manual", "version": "1.0"})
+    
+    # 2. Add chunks for each section
+    create_chunk(text="Installation instructions...", document_id=doc.id, 
+                metadata={"section": "installation"})
+    create_chunk(text="Configuration options...", document_id=doc.id,
+                metadata={"section": "configuration"})
+    ```
+  </Tab>
+  
+  <Tab title="Chunk-First">
+    **Best for:** Streaming data, social media, logs
+    
+    ```python
+    # Create chunks directly, let documents auto-generate
+    create_chunk(text="Customer complaint about login issues", 
+                metadata={"type": "support", "priority": "high"},
+                document_metadata={"source": "ticket-system"})
+    ```
+  </Tab>
+  
+  <Tab title="Bulk Loading">
+    **Best for:** Large datasets, migrations
+    
+    ```python
+    # Process files in batches
+    for file in files:
+        doc = create_document(metadata={"filename": file.name})
+        
+        chunks = split_into_chunks(file.content)
+        for i, chunk_text in enumerate(chunks):
+            create_chunk(text=chunk_text, document_id=doc.id,
+                        metadata={"chunk_index": i, "file": file.name})
+    ```
+  </Tab>
+</Tabs>
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card
+    title="Libraries"
+    icon="folder"
+    href="/essentials/libraries"
+  >
+    Learn about libraries as containers for your documents and chunks.
+  </Card>
+  <Card
+    title="Searching"
+    icon="magnifying-glass"
+    href="/essentials/searching"
+  >
+    Discover how to search across your chunks using vector similarity.
+  </Card>
+  <Card
+    title="Filtering"
+    icon="filter"
+    href="/essentials/filtering"
+  >
+    Master metadata filtering to narrow down search results.
+  </Card>
+  <Card
+    title="Indexing"
+    icon="chart-network"
+    href="/essentials/indexing"
+  >
+    Understand how different index types affect your data organization.
+  </Card>
+</CardGroup>
