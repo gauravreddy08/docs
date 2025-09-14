@@ -7,10 +7,16 @@ description: 'Start building with Vector Database API in under 5 minutes'
 
 <Steps>
   <Step title="Start the API server">
-    Use Docker Compose to quickly start the Vector Database API:
+    Use Docker to quickly start the Vector Database API:
     
+    Build the image:
     ```bash
-    docker compose up -d
+    docker build -t vector-db .
+    ```
+    
+    Run the container:
+    ```bash
+    docker run -d -p 8000:8000 -e COHERE_API_KEY="your_api_key_here" --name vector-db-container vector-db
     ```
     
     <Check>
